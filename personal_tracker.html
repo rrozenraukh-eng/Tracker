@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e8e8e8; display: flex; height: 100vh; overflow: hidden; }
+
+  .sidebar { width: 80px; background: #161616; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 4px; flex-shrink: 0; height: 100vh; overflow: hidden; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: #3b4a6b; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #8baee0; margin-bottom: 16px; }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px; border-radius: 10px; cursor: pointer; width: 64px; transition: background 0.15s; }
+  .nav-item:hover { background: #222; }
+  .nav-item.active { background: #1e2a40; }
+  .nav-icon { font-size: 20px; line-height: 1; }
+  .nav-label { font-size: 10px; color: #888; }
+  .nav-item.active .nav-label { color: #6b9de8; }
+
+  .main { flex: 1; overflow-y: auto; padding: 28px 32px; height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  h1.page-title { font-size: 24px; font-weight: 600; color: #e8e8e8; margin-bottom: 4px; }
+  .page-subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 13px; font-weight: 500; color: #aaa; margin-bottom: 16px; }
+
+  /* Week grid */
+  .week-grid { display: grid; grid-template-columns: 140px repeat(7, 1fr); }
+  .week-header-cell { text-align: center; padding: 8px 4px; font-size: 12px; color: #666; }
+  .week-header-cell.today { color: #6b9de8; }
+  .week-header-cell .status-pip { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-top: 3px; }
+  .pip-on  { background: #5ab85a; } .pip-off { background: #e06060; } .pip-not { background: #555; }
+  .week-row-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; padding: 10px 0; border-top: 1px solid #222; }
+  .week-cell { text-align: center; padding: 10px 4px; font-size: 12px; border-top: 1px solid #222; }
+  .week-cell.cal-pos { color: #e06060; }
+  .week-cell.cal-neg { color: #5a9e5a; }
+  .week-cell.social-cell { color: #e67e7e; }
+  .week-cell.dash { color: #444; }
+  .week-cell.event-day { color: #444; font-style: italic; font-size: 10px; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+  .stat-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+  .stat-icon { font-size: 22px; }
+  .stat-label { font-size: 11px; color: #666; margin-top: 2px; }
+  .stat-value { font-size: 18px; font-weight: 600; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .progress-bar-wrap { margin: 12px 0; height: 4px; background: #2a2a2a; border-radius: 2px; position: relative; }
+  .progress-bar-fill { height: 4px; background: #6b9de8; border-radius: 2px; }
+  .progress-bar-label { position: absolute; top: 8px; color: #6b9de8; font-size: 11px; white-space: nowrap; }
+  .progress-ends { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 22px; }
+  .chart-wrap { position: relative; width: 100%; }
+  canvas { display: block; }
+
+  /* Log */
+  .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .log-nav-btn { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 8px 18px; color: #aaa; cursor: pointer; font-size: 20px; line-height: 1; }
+  .log-nav-btn:hover { background: #222; }
+  .day-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .day-col-header { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 16px; text-align: center; margin-bottom: 12px; }
+  .day-col-header.active { background: #1e2a40; border-color: #3b5a8a; }
+  .day-col-header .day-name { font-size: 15px; font-weight: 600; }
+  .day-col-header .day-date { font-size: 12px; color: #666; }
+
+  .rings-row { display: flex; justify-content: space-around; margin-bottom: 12px; }
+  .ring-item { text-align: center; }
+  .ring-label { font-size: 11px; color: #888; margin-top: 4px; }
+  .ring-val { font-size: 11px; color: #555; margin-top: 1px; }
+
+  .section-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .section-title { font-size: 14px; font-weight: 500; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .field-label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+
+  input[type="text"], input[type="number"], textarea, select {
+    background: #111; border: 1px solid #2a2a2a; border-radius: 8px; color: #e8e8e8; font-size: 13px; padding: 9px 12px; width: 100%; outline: none; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { border-color: #4a6fa5; }
+  textarea { resize: none; }
+
+  .toggle-row { display: flex; gap: 8px; }
+  .toggle-btn { flex: 1; padding: 9px 8px; border-radius: 8px; border: 1px solid #2a2a2a; background: #111; color: #aaa; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s; }
+  .toggle-btn.active { background: #1e2a40; border-color: #4a6fa5; color: #6b9de8; }
+
+  .habit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .habit-btn { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.15s; }
+  .habit-btn:hover { background: #1a1a1a; }
+  .habit-btn.done { background: #1a2a1a; border-color: #2d5a2d; }
+  .habit-btn .habit-icon { font-size: 18px; }
+  .habit-info .habit-name { font-size: 13px; font-weight: 500; }
+  .habit-info .habit-status { font-size: 10px; color: #666; }
+  .habit-btn.done .habit-info .habit-status { color: #5a9e5a; }
+
+  /* Journal dots — smaller */
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #333; cursor: pointer; transition: all 0.15s; display: inline-block; }
+  .dot.filled-1 { background: #8b3030; border-color: #8b3030; }
+  .dot.filled-2 { background: #c4803a; border-color: #c4803a; }
+  .dot.filled-3 { background: #4a9e5a; border-color: #4a9e5a; }
+  .journal-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .journal-metric-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; gap: 8px; }
+  .journal-metric-label { color: #888; white-space: nowrap; }
+  .journal-dots { display: flex; gap: 4px; }
+
+  /* Command Centre blocks */
+  .cc-primary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .cc-block { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px 18px; }
+  .cc-block-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #555; font-weight: 600; margin-bottom: 6px; }
+  .cc-block-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .cc-block-sub { font-size: 11px; color: #666; margin-top: 4px; }
+
+  .cc-trend { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .cc-trend-item { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px 18px; }
+  .cc-trend-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .cc-trend-value { font-size: 22px; font-weight: 700; }
+  .cc-trend-sub { font-size: 11px; color: #555; margin-top: 2px; }
+
+  .cc-behaviour { display: flex; gap: 20px; align-items: center; padding: 12px 18px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cc-bstat { font-size: 13px; }
+  .cc-bstat-label { color: #666; }
+  .cc-bstat-val { font-weight: 600; margin-left: 4px; }
+
+  .section-divider { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #444; font-weight: 600; margin: 24px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #222; }
+
+  .all-time-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .all-time-item { background: #141414; border: 1px solid #222; border-radius: 10px; padding: 14px 16px; text-align: center; }
+  .all-time-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .all-time-label { font-size: 11px; color: #555; }
+
+  /* Quick Log status */
+  .quick-log-card { background: #141414; border: 1px solid #2a2a2a; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .quick-log-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 600; }
+  .status-row { display: flex; gap: 6px; }
+  .status-btn { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid #2a2a2a; background: #0f0f0f; color: #666; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s; white-space: nowrap; }
+  .status-btn:hover { background: #1a1a1a; color: #aaa; }
+  .status-btn.active-on  { background: #1a2a1a; border-color: #2d5a2d; color: #5ab85a; }
+  .status-btn.active-off { background: #2a1a1a; border-color: #5a2a2a; color: #e06060; }
+  .status-btn.active-not { background: #1a1a2a; border-color: #2a2a4a; color: #8888cc; }
+
+  /* Five-day chips */
+  .five-day-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .five-day-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .chip-on     { background: #1a2a1a; color: #5ab85a; border: 1px solid #2d5a2d; }
+  .chip-off    { background: #2a1a1a; color: #e06060; border: 1px solid #5a2a2a; }
+  .chip-paused { background: #1a1a2a; color: #8888cc; border: 1px solid #2a2a4a; }
+  .chip-none   { background: #1a1a1a; color: #555;    border: 1px solid #2a2a2a; }
+
+  /* Intervention */
+  .intervention { display:flex; align-items:flex-start; gap:10px; background:#1a1e28; border:1px solid #2d3a52; border-radius:12px; padding:13px 16px; margin-bottom:16px; }
+  .intervention-icon { font-size:18px; flex-shrink:0; margin-top:1px; }
+  .intervention-msg { font-size:14px; color:#a8b8d8; line-height:1.4; }
+  .intervention-dash { display:flex; align-items:center; gap:8px; background:#161a24; border:1px solid #252d3d; border-radius:10px; padding:10px 14px; margin-bottom:16px; }
+  .intervention-dash .intervention-icon { font-size:15px; }
+  .intervention-dash .intervention-msg { font-size:12px; color:#7a8fb0; }
+
+  /* Exercise done button */
+  .exercise-done-btn { flex-shrink: 0; padding: 0 14px; border-radius: 8px; border: 1px solid #2a2a2a; background: #111; color: #aaa; font-size: 12px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.15s; }
+  .exercise-done-btn.done { background: #1a2a1a; border-color: #2d5a2d; color: #5a9e5a; }
+
+  /* Goals */
+  .goal-row { display: flex; flex-direction: column; gap: 14px; }
+  .goal-item-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .goal-item-label { font-size: 13px; color: #ccc; }
+  .goal-item-count { font-size: 13px; font-weight: 600; }
+  .goal-bar-track { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+  .goal-bar-fill { height: 6px; border-radius: 3px; transition: width 0.4s ease; }
+  .goal-fill-good { background: #5a9e5a; }
+  .goal-fill-close { background: #e6a030; }
+  .goal-fill-low { background: #3b5a8a; }
+  .goal-hint { font-size: 11px; color: #6b9de8; margin-top: 5px; }
+  .goal-met  { font-size: 11px; color: #5a9e5a; margin-top: 5px; }
+
+  /* Today goals */
+  .today-goals { background: #141414; border: 1px solid #252525; border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; }
+  .today-goals-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #555; font-weight: 600; margin-bottom: 12px; }
+
+  /* Settings */
+  .settings-section { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .settings-section-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .settings-section-sub { font-size: 12px; color: #666; margin-bottom: 16px; }
+  .settings-field { margin-bottom: 14px; }
+  .settings-label { font-size: 12px; color: #999; margin-bottom: 3px; }
+  .settings-sublabel { font-size: 11px; color: #555; margin-bottom: 6px; }
+  .settings-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .habit-setting-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #222; }
+  .habit-setting-item:last-child { border-bottom: none; }
+  .delete-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 16px; padding: 4px; flex-shrink: 0; }
+  .delete-btn:hover { color: #e06060; }
+  .add-btn { background: #1e2a40; border: 1px solid #3b5a8a; border-radius: 8px; padding: 7px 14px; color: #6b9de8; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .journal-tracker-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #222; gap: 10px; }
+  .journal-tracker-row:last-child { border-bottom: none; }
+  .jt-num { width: 22px; font-size: 12px; color: #555; flex-shrink: 0; }
+  .jt-dot-preview { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #444; }
+  .save-btn { width: 100%; padding: 14px; background: #3b7dd8; border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .save-btn:hover { background: #4a8ae8; }
+  .reset-btn { width: 100%; padding: 13px; background: transparent; border: 1px solid #5a2a2a; border-radius: 10px; color: #e06060; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+  .reset-btn:hover { background: #2a1010; }
+  .log-today-btn { background: #3b7dd8; border: none; border-radius: 10px; padding: 10px 20px; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .log-today-btn:hover { background: #4a8ae8; }
+  .inline-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .green-pct { font-size: 12px; color: #5a9e5a; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 999; }
+  .modal-box { background: #1a1a1a; border: 1px solid #3a1a1a; border-radius: 14px; padding: 28px; max-width: 380px; width: 90%; text-align: center; }
+  .modal-icon { font-size: 36px; margin-bottom: 12px; }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .modal-sub { font-size: 13px; color: #888; margin-bottom: 24px; line-height: 1.5; }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-cancel { flex: 1; padding: 12px; background: #111; border: 1px solid #2a2a2a; border-radius: 8px; color: #aaa; font-size: 14px; cursor: pointer; }
+  .modal-cancel:hover { background: #222; }
+  .modal-confirm { flex: 1; padding: 12px; background: #8b2020; border: none; border-radius: 8px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .modal-confirm:hover { background: #a02828; }
+
+  /* Today mode */
+  .today-wrap { max-width: 480px; margin: 0 auto; padding-bottom: 32px; }
+  .today-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .today-title { font-size: 28px; font-weight: 700; }
+  .today-date-sub { font-size: 13px; color: #666; margin-top: 2px; }
+  .today-dash-btn { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 9px 16px; color: #aaa; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .today-dash-btn:hover { background: #222; color: #e8e8e8; }
+  .today-section { margin-bottom: 18px; }
+  .today-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #555; font-weight: 600; margin-bottom: 10px; }
+  .today-status-row { display: flex; flex-direction: column; gap: 10px; }
+  .today-status-btn { width: 100%; padding: 18px 16px; border-radius: 14px; border: 2px solid #2a2a2a; background: #111; color: #888; font-size: 17px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+  .today-status-btn:active { transform: scale(0.98); }
+  .today-status-btn.active-on     { background: #1a2a1a; border-color: #3d7a3d; color: #5ab85a; }
+  .today-status-btn.active-off    { background: #2a1a1a; border-color: #7a3d3d; color: #e06060; }
+  .today-status-btn.active-paused { background: #1a1a2a; border-color: #3d3d7a; color: #8888cc; }
+  .today-weight-input { font-size: 20px; padding: 14px 16px; border-radius: 12px; }
+  .today-done-toggle { flex-shrink: 0; padding: 0 18px; border-radius: 12px; border: 2px solid #2a2a2a; background: #111; color: #888; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; }
+  .today-done-toggle.done { background: #1a2a1a; border-color: #3d7a3d; color: #5ab85a; }
+  .today-confirm-btn { width: 100%; padding: 20px; background: #3b7dd8; border: none; border-radius: 14px; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; margin-top: 8px; -webkit-tap-highlight-color: transparent; }
+  .today-confirm-btn:hover { background: #4a8ae8; }
+  .today-toast { text-align: center; padding: 14px; background: #1a2a1a; border: 1px solid #3d7a3d; border-radius: 12px; color: #5ab85a; font-size: 15px; font-weight: 600; margin-top: 12px; display: none; }
+  .today-toast.show { display: block; }
+  .today-detail-link { text-align: center; margin-top: 16px; }
+  .today-detail-link a { font-size: 13px; color: #555; cursor: pointer; text-decoration: none; }
+  .today-detail-link a:hover { color: #888; }
+
+  /* keto/paused hidden */
+  .keto-hidden { display: none !important; }
+  .paused-muted { opacity: 0.45; pointer-events: none; }
+  .paused-notice { background: #151522; border: 1px solid #2a2a4a; border-radius: 8px; padding: 10px 13px; font-size: 12px; color: #7878cc; margin-bottom: 10px; }
+
+  /* Recent Performance combined card */
+  .rp-divider { border: none; border-top: 1px solid #222; margin: 12px 0; }
+  .rp-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #555; font-weight: 600; margin-bottom: 8px; }
+  .rp-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rp-trend-block { }
+  .rp-trend-value { font-size: 20px; font-weight: 700; line-height: 1.1; }
+  .rp-trend-sub { font-size: 11px; color: #666; margin-top: 3px; }
+  .rp-behaviour { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 2px; }
+  .rp-bstat { font-size: 13px; }
+  .rp-bstat-label { color: #666; }
+  .rp-bstat-val { font-weight: 600; margin-left: 3px; }
+
+  /* Mobile */
+  @media (max-width: 767px) {
+    body { flex-direction: column-reverse; overflow: hidden; }
+    .sidebar { width: 100%; height: 60px; min-height: 60px; flex-direction: row; justify-content: space-around; padding: 0 8px; border-right: none; border-top: 1px solid #2a2a2a; }
+    .avatar { display: none; }
+    .nav-item { width: auto; flex: 1; padding: 8px 4px; flex-direction: column; }
+    .nav-label { font-size: 9px !important; }
+    .main { padding: 20px 18px; height: calc(100vh - 60px); overflow-y: auto; }
+    .cc-primary { grid-template-columns: 1fr 1fr; }
+    .cc-primary .cc-block:last-child { grid-column: span 2; }
+    .cc-trend { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .all-time-grid { grid-template-columns: 1fr 1fr; }
+    .day-cols { grid-template-columns: 1fr; }
+    .week-grid { grid-template-columns: 80px repeat(7, 1fr); font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="avatar">K</div>
+  <div class="nav-item" onclick="navigate('today')" id="nav-today"><div class="nav-icon">✦</div><div class="nav-label">Today</div></div>
+  <div class="nav-item active" onclick="navigate('dashboard')" id="nav-dashboard"><div class="nav-icon">⊞</div><div class="nav-label" style="font-size:9px;">Centre</div></div>
+  <div class="nav-item" onclick="navigate('log')" id="nav-log"><div class="nav-icon" style="font-size:22px;">＋</div><div class="nav-label">Log</div></div>
+  <div class="nav-item" onclick="navigate('settings')" id="nav-settings"><div class="nav-icon">⚙</div><div class="nav-label">Settings</div></div>
+</div>
+
+<div class="main">
+
+<!-- TODAY MODE -->
+<div class="page" id="page-today">
+  <div class="today-wrap">
+    <div class="today-header">
+      <div><div class="today-title">Today</div><div class="today-date-sub" id="today-date-sub"></div></div>
+      <button class="today-dash-btn" onclick="navigate('dashboard')">⊞ Dashboard</button>
+    </div>
+    <div id="today-intervention"></div>
+    <div id="today-goals"></div>
+    <div class="today-section">
+      <div class="today-section-label">How's today going?</div>
+      <div class="today-status-row">
+        <button class="today-status-btn" id="tsb-on"     onclick="todaySetStatus('on')"><span>🟢</span> On Track</button>
+        <button class="today-status-btn" id="tsb-off"    onclick="todaySetStatus('off')"><span>🔴</span> Off Track</button>
+        <button class="today-status-btn" id="tsb-paused" onclick="todaySetStatus('paused')"><span>⚪</span> Paused</button>
+      </div>
+    </div>
+    <div class="today-section">
+      <div class="today-section-label">Morning Weight (kg)</div>
+      <input type="number" step="0.1" class="today-weight-input" id="today-weight" placeholder="e.g. 62.0">
+    </div>
+    <div class="today-section" id="today-inputs-section">
+      <div class="today-section-label">Exercise</div>
+      <button class="today-done-toggle" id="today-ex-done-btn" onclick="todayToggleEx()">○ Not done</button>
+    </div>
+    <button class="today-confirm-btn" onclick="todaySubmit()">✔ Done</button>
+    <div class="today-toast" id="today-toast">✓ Logged for today</div>
+    <div class="today-detail-link"><a onclick="navigate('log')">Open full log →</a></div>
+  </div>
+</div>
+
+<!-- COMMAND CENTRE -->
+<div class="page active" id="page-dashboard">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <h1 class="page-title">Command Centre</h1>
+      <div class="page-subtitle" id="dash-date"></div>
+      <div style="font-size:12px;color:#5a9e5a;margin-top:2px;" id="dash-day-count"></div>
+    </div>
+    <button class="log-today-btn" onclick="navigate('log')">＋ Log Today</button>
+  </div>
+
+  <div id="dash-intervention"></div>
+
+  <!-- WEEK GRID — top for visual planning -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">This Week</div>
+    <div class="week-grid" id="week-grid"></div>
+  </div>
+
+  <!-- Status blocks -->
+  <div class="cc-primary">
+    <div class="cc-block">
+      <div class="cc-block-label">Today</div>
+      <div class="cc-block-value" id="cc-today-val" style="font-size:16px;">—</div>
+      <div class="cc-block-sub" id="cc-today-sub"></div>
+    </div>
+    <div class="cc-block">
+      <div class="cc-block-label">Tracking Day</div>
+      <div class="cc-block-value" id="cc-day-num">1</div>
+      <div class="cc-block-sub" id="cc-day-sub"></div>
+    </div>
+    <div class="cc-block">
+      <div class="cc-block-label">Streak</div>
+      <div class="cc-block-value" id="cc-streak">0</div>
+      <div class="cc-block-sub">logged days in a row</div>
+    </div>
+  </div>
+
+  <!-- RECENT PERFORMANCE — combined card -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:12px;">Recent Performance</div>
+
+    <!-- A: Last 5 days -->
+    <div class="rp-section-label">Last 5 days</div>
+    <div class="five-day-bar" id="five-day-bar" style="margin-bottom:6px;"></div>
+    <div style="font-size:12px;color:#666;" id="five-day-summary"></div>
+
+    <hr class="rp-divider">
+
+    <!-- B: Trends -->
+    <div class="rp-section-label">Trends — last 7 days</div>
+    <div class="rp-trends">
+      <div class="rp-trend-block">
+        <div style="font-size:11px;color:#888;margin-bottom:3px;" id="cc-trend-label-weight">Weight</div>
+        <div class="rp-trend-value" id="cc-weight-7d">—</div>
+        <div class="rp-trend-sub" id="cc-weight-7d-sub"></div>
+      </div>
+      <div class="rp-trend-block">
+        <div style="font-size:11px;color:#888;margin-bottom:3px;">Exercise</div>
+        <div class="rp-trend-value" id="cc-ex-7d">—</div>
+        <div class="rp-trend-sub" id="cc-ex-7d-sub"></div>
+      </div>
+    </div>
+
+    <hr class="rp-divider">
+
+    <!-- C: Behaviour summary -->
+    <div class="rp-section-label">Behaviour — last 7 days</div>
+    <div class="rp-behaviour">
+      <span class="rp-bstat"><span class="rp-bstat-label">On:</span><span class="rp-bstat-val" id="cc-b-on" style="color:#5ab85a;">—</span></span>
+      <span style="color:#333;">|</span>
+      <span class="rp-bstat"><span class="rp-bstat-label">Off:</span><span class="rp-bstat-val" id="cc-b-off" style="color:#e06060;">—</span></span>
+      <span style="color:#333;">|</span>
+      <span class="rp-bstat"><span class="rp-bstat-label">Paused:</span><span class="rp-bstat-val" id="cc-b-paused" style="color:#8888cc;">—</span></span>
+      <span style="color:#333;">|</span>
+      <span class="rp-bstat"><span class="rp-bstat-label">Unlogged:</span><span class="rp-bstat-val" id="cc-b-none" style="color:#555;">—</span></span>
+    </div>
+  </div>
+
+  <!-- Goals -->
+  <div class="card" style="margin-bottom:16px;padding:16px 20px;">
+    <div class="card-title" style="margin-bottom:14px;">🎯 Goals — last 7 days</div>
+    <div class="goal-row" id="dash-goals"></div>
+  </div>
+
+  <!-- Insights -->
+  <div class="card" style="margin-bottom:16px;padding:16px 20px;">
+    <div class="card-title" style="margin-bottom:12px;">🧠 Insights</div>
+    <div id="insights-list"></div>
+  </div>
+
+  <div class="section-divider">Details & History</div>
+
+  <!-- Weight goal + rolling summary -->
+  <div class="two-col">
+    <div class="card">
+      <div class="inline-label-row"><span class="card-title" style="margin:0;">Weight to Goal</span><span class="green-pct" id="weight-pct">0.0%</span></div>
+      <div style="margin-top:10px;"><span style="font-size:32px;font-weight:700;" id="current-weight">—</span> <span style="font-size:14px;color:#888;">kg</span><span style="float:right;font-size:12px;color:#888;" id="goal-weight-label">Goal: — kg</span></div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="weight-bar" style="width:0%"></div><div class="progress-bar-label" id="weight-bar-label" style="left:0%"></div></div>
+      <div class="progress-ends"><span id="start-weight-label">—</span><span id="goal-weight-end">— kg</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px;">Rolling 7-Day</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #222;font-size:13px;"><span style="flex:1;color:#888;">Weight change (7d)</span><span id="actual-change" style="font-weight:500;">—</span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #222;font-size:13px;"><span style="flex:1;color:#888;">Avg cal burned / day</span><span id="avg-burn" style="font-weight:500;">—</span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 0;font-size:13px;"><span style="flex:1;color:#888;">Avg cal in / day</span><span id="avg-cal-in-detail" style="font-weight:500;">—</span></div>
+
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #222;">
+        <div style="font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Estimated Fat Loss</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:6px;">
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:2px;">So far (7d)</div>
+            <div style="font-size:18px;font-weight:700;" id="fat-loss-sofar">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:2px;">Weekly rate</div>
+            <div style="font-size:18px;font-weight:700;" id="fat-loss-rate">—</div>
+          </div>
+          <div id="fat-loss-pace-wrap" style="display:none;align-self:flex-end;padding-bottom:2px;">
+            <span id="fat-loss-pace" style="font-size:11px;padding:3px 8px;border-radius:10px;font-weight:600;"></span>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#555;" id="fat-loss-meta"></div>
+      </div>
+
+      <div id="weight-vs-plan-wrap" style="margin-top:14px;padding-top:12px;border-top:1px solid #222;display:none;">
+        <div style="font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Weight vs Plan</div>
+        <div style="font-size:13px;font-weight:600;" id="wvp-headline"></div>
+        <div style="font-size:11px;color:#666;margin-top:3px;" id="wvp-sub"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All-time stats -->
+  <div class="all-time-grid">
+    <div class="all-time-item"><div class="all-time-val" id="pr-lowest">—</div><div class="all-time-label">Lowest weight</div></div>
+    <div class="all-time-item"><div class="all-time-val" id="pr-avg-cal">—</div><div class="all-time-label">All-time avg cal</div></div>
+    <div class="all-time-item"><div class="all-time-val" id="pr-deficit-days">—</div><div class="all-time-label">Days in deficit<br><span style="font-size:10px;color:#444;" id="pr-deficit-of"></span></div></div>
+    <div class="all-time-item"><div class="all-time-val" id="pr-days-logged">—</div><div class="all-time-label">Days logged</div></div>
+  </div>
+
+  <!-- Charts — 4-week trend + this week only -->
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-title">4-Week Trend</div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="trend-chart" role="img" aria-label="4-week trend bar chart"></canvas></div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:#888;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#6b9de8;display:inline-block;"></span>Net Cal</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#5a9e5a;display:inline-block;"></span>Weight×10</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#e6a030;display:inline-block;"></span>Cal Burned</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Last 7 Days</div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="this-week-chart" role="img" aria-label="Last 7 days line chart"></canvas></div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:#888;">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#e6a030;display:inline-block;"></span>Net Cal</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#5a9e5a;display:inline-block;"></span>Weight×10</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#6b9de8;display:inline-block;"></span>Cal Burned</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div class="page" id="page-log">
+  <div class="log-header">
+    <button class="log-nav-btn" id="log-prev">‹</button>
+    <div style="text-align:center;"><div style="font-size:18px;font-weight:600;">Daily Log</div><div style="font-size:12px;color:#666;" id="log-range-label"></div></div>
+    <button class="log-nav-btn" id="log-next">›</button>
+  </div>
+  <div class="day-cols" id="day-cols"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <h1 class="page-title" style="margin-bottom:20px;">Settings</h1>
+  <div class="settings-section">
+    <div class="settings-section-title">Weight & Calorie Goals</div>
+    <div class="settings-two-col" style="margin-top:12px;">
+      <div class="settings-field"><div class="settings-label">Starting Weight (kg)</div><div class="settings-sublabel">Your weight at the start of your journey</div><input type="number" id="s-start-weight" step="0.1" placeholder="e.g. 70"></div>
+      <div class="settings-field"><div class="settings-label">Target Weight (kg)</div><div class="settings-sublabel">Your goal weight</div><input type="number" id="s-target-weight" step="0.1" placeholder="e.g. 65"></div>
+      <div class="settings-field"><div class="settings-label">Daily Calorie Limit</div><div class="settings-sublabel">Your target daily calorie intake</div><input type="number" id="s-cal-limit" placeholder="e.g. 1500"></div>
+      <div class="settings-field"><div class="settings-label">Daily Net Carbs Limit (g)</div><div class="settings-sublabel">Standard keto is under 20–50g</div><input type="number" id="s-carbs-limit" placeholder="e.g. 40"></div>
+      <div class="settings-field"><div class="settings-label">BMR (calories/day)</div><div class="settings-sublabel">Your basal metabolic rate — used for fat loss estimates</div><input type="number" id="s-bmr" placeholder="e.g. 1575"></div>
+      <div class="settings-field"><div class="settings-label">On-Track Days Goal (per 7 days)</div><div class="settings-sublabel">How many 🟢 On Track days per week?</div><input type="number" id="s-on-target" min="1" max="7" placeholder="e.g. 5"></div>
+      <div class="settings-field"><div class="settings-label">Exercise Days Goal (per 7 days)</div><div class="settings-sublabel">How many exercise sessions per week?</div><input type="number" id="s-ex-target" min="1" max="7" placeholder="e.g. 4"></div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div class="settings-section-title">Daily Habits</div><button class="add-btn" onclick="addHabit()">＋ Add</button></div>
+    <div class="settings-section-sub">Choose up to 6 habits to track each day</div>
+    <div id="habits-list"></div>
+  </div>
+  <div class="settings-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div class="settings-section-title">Journal Trackers</div><button class="add-btn" onclick="addJournalTracker()">＋ Add</button></div>
+    <div class="settings-section-sub">Choose up to 6 daily metrics to rate 1–3</div>
+    <div id="journal-trackers-list"></div>
+  </div>
+  <div class="settings-section" style="border-color:#3a1a1a;">
+    <div class="settings-section-title" style="color:#e06060;">⚠️ Danger Zone</div>
+    <div class="settings-section-sub">Permanently deletes all logged data and resets everything to defaults.</div>
+    <button class="reset-btn" onclick="showResetModal()">🗑 Reset All Data & Start Fresh</button>
+  </div>
+  <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+</div>
+
+</div><!-- .main -->
+
+<!-- Reset Modal -->
+<div class="modal-overlay" id="reset-modal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <div class="modal-title">Reset everything?</div>
+    <div class="modal-sub">This will delete all your logs, progress data, and settings. It cannot be undone.</div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="hideResetModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmReset()">Yes, reset all</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DEFAULT_SETTINGS = {
+  startWeight:62.3, targetWeight:55, calLimit:1200, carbsLimit:40, height:63.5, bmr:1575,
+  habits:[{icon:'🏃',name:'Physio'},{icon:'💧',name:'Water'},{icon:'🧘',name:'Self Care'},{icon:'✨',name:'Skin Care'}],
+  journalTrackers:[{name:'Sleep'},{name:'Poo'},{name:'Motivation'},{name:'Feeling'}]
+};
+const DEFAULT_GOALS = { onTrackTarget:5, exerciseTarget:4 };
+
+// ── Date utils ──
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayDate() { return new Date(); }
+function addDays(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function startOfWeek(d) { // Monday-based
+  const r=new Date(d), day=r.getDay();
+  r.setDate(r.getDate()+(day===0?-6:1-day)); r.setHours(0,0,0,0); return r;
+}
+
+// ── Storage ──
+let settings = JSON.parse(localStorage.getItem('pt_settings') || JSON.stringify(DEFAULT_SETTINGS));
+let logs     = JSON.parse(localStorage.getItem('pt_logs')     || '{}');
+let goals    = JSON.parse(localStorage.getItem('pt_goals')    || JSON.stringify(DEFAULT_GOALS));
+function saveLogs()        { localStorage.setItem('pt_logs',     JSON.stringify(logs));     }
+function saveSettingsData(){ localStorage.setItem('pt_settings', JSON.stringify(settings)); }
+function saveGoals()       { localStorage.setItem('pt_goals',    JSON.stringify(goals));    }
+
+// ── Tracking start ──
+function getTrackingStart()  { return localStorage.getItem('pt_tracking_start') || null; }
+function setTrackingStart(dk){ localStorage.setItem('pt_tracking_start', dk); }
+function autoSetTrackingStart() {
+  if (getTrackingStart()) return;
+  const keys = Object.keys(logs).sort();
+  setTrackingStart(keys.length ? keys[0] : dateKey(todayDate()));
+}
+function trackingDayCount() {
+  const s = getTrackingStart(); if (!s) return 1;
+  const sd=new Date(s+'T00:00:00'), nd=todayDate(); nd.setHours(0,0,0,0);
+  return Math.max(1, Math.floor((nd-sd)/86400000)+1);
+}
+
+// ── Data model ──
+function getLog(dk) {
+  if (!logs[dk]) {
+    logs[dk] = { weight:'', calIn:0, calBurnt:0, carbs:0, keto:false, social:'',
+                 exercise:'', exerciseDone:false, mealNotes:'',
+                 habits:{}, journal:{}, journalNote:'', status:null };
+    if (!getTrackingStart()) setTrackingStart(dk);
+  }
+  const l = logs[dk];
+  if (l.keto       === undefined) l.keto       = false;
+  if (l.exerciseDone=== undefined) l.exerciseDone= false;
+  if (l.status     === undefined) l.status     = null;
+  return l;
+}
+
+// ── Net cal: calIn - calBurnt (no BMR — that's for fat loss estimate only) ──
+function netCal(log) {
+  return (parseFloat(log.calIn) || 0) - (parseFloat(log.calBurnt) || 0);
+}
+
+// ── Reset ──
+function showResetModal() { document.getElementById('reset-modal').style.display='flex'; }
+function hideResetModal() { document.getElementById('reset-modal').style.display='none'; }
+function confirmReset() {
+  ['pt_logs','pt_settings','pt_goals','pt_tracking_start'].forEach(k=>localStorage.removeItem(k));
+  logs={}; settings=JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); goals=JSON.parse(JSON.stringify(DEFAULT_GOALS));
+  saveSettingsData(); hideResetModal(); navigate('dashboard');
+}
+
+// ── Navigation ──
+let currentPage = 'dashboard';
+function navigate(page) {
+  document.getElementById('page-'+currentPage).classList.remove('active');
+  document.getElementById('nav-' +currentPage).classList.remove('active');
+  currentPage = page;
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('nav-' +page).classList.add('active');
+  if (page==='dashboard') renderDashboard();
+  if (page==='log')       renderLog();
+  if (page==='today')     renderToday();
+  if (page==='settings')  renderSettingsPage();
+}
+
+// ── Goals ──
+function getGoalProgress() {
+  const now = todayDate(); let onCount=0, exerciseCount=0;
+  for (let i=6; i>=0; i--) {
+    const l = logs[dateKey(addDays(now,-i))]; if (!l) continue;
+    if (l.status==='on') onCount++;
+    // FIX: count exerciseDone only, cap at 7
+    if (l.exerciseDone===true && l.status!=='paused') exerciseCount++;
+  }
+  exerciseCount = Math.min(exerciseCount, 7);
+  return { onCount, exerciseCount, onTrackTarget:goals.onTrackTarget, exerciseTarget:goals.exerciseTarget };
+}
+
+function renderGoalBar(count, target, label) {
+  // FIX: cap displayed count at target so we don't show 7/6
+  const displayCount = Math.min(count, target);
+  const pct = target>0 ? Math.min(100, Math.round((count/target)*100)) : 0;
+  const met = count >= target, close = !met && count===target-1;
+  const fc = met ? 'goal-fill-good' : close ? 'goal-fill-close' : 'goal-fill-low';
+  const hint = met
+    ? `<div class="goal-met">✓ Goal reached (${count} days)</div>`
+    : close
+    ? `<div class="goal-hint">One more ${label==='On Track'?'on-track day':'workout'} to hit your goal</div>`
+    : '';
+  return `<div>
+    <div class="goal-item-header">
+      <span class="goal-item-label">🎯 ${label}</span>
+      <span class="goal-item-count" style="color:${met?'#5a9e5a':close?'#e6a030':'#888'}">${count} / ${target}</span>
+    </div>
+    <div class="goal-bar-track"><div class="goal-bar-fill ${fc}" style="width:${pct}%"></div></div>
+    ${hint}
+  </div>`;
+}
+
+// ── Insights ──
+function generateInsights() {
+  const insights=[], keys=Object.keys(logs).sort();
+  let ppT=0, ppO=0;
+  for (let i=1; i<keys.length; i++) {
+    const prev=logs[keys[i-1]], curr=logs[keys[i]];
+    const d1=new Date(keys[i-1]+'T00:00:00'), d2=new Date(keys[i]+'T00:00:00');
+    if ((d2-d1)!==86400000) continue;
+    if (prev&&prev.status==='paused'&&curr&&(curr.status==='on'||curr.status==='off')) { ppT++; if(curr.status==='off') ppO++; }
+  }
+  if (ppT>=3) {
+    const pct=ppO/ppT;
+    if (pct>0.5) insights.push(`You often go off track after paused days (${Math.round(pct*100)}% of the time)`);
+    else if (pct<0.3) insights.push('You usually bounce back after paused days — good resilience');
+  }
+  if (insights.length<3) {
+    let eO=0,eT=0,nO=0,nT=0;
+    for (const dk of keys) { const l=logs[dk]; if(!l||(l.status!=='on'&&l.status!=='off'))continue; if(l.exerciseDone){eT++;if(l.status==='on')eO++;}else{nT++;if(l.status==='on')nO++;} }
+    if (eT>=3&&nT>=3) { const diff=(eO/eT)-(nO/nT); if(Math.abs(diff)>0.2){ if(diff>0)insights.push(`You're more likely to stay on track on exercise days (${Math.round((eO/eT)*100)}% vs ${Math.round((nO/nT)*100)}%)`); else insights.push('Exercise doesn\'t strongly predict your consistency');}}
+  }
+  if (insights.length<3) {
+    let streaks=[],cur=0;
+    for (const dk of keys) { const l=logs[dk]; if(l&&l.status==='off')cur++; else{if(cur>=2)streaks.push(cur);cur=0;} }
+    if (cur>=2) streaks.push(cur);
+    if (streaks.length>=2) { const avg=streaks.reduce((a,b)=>a+b,0)/streaks.length; if(avg>=2)insights.push(`Off-track days tend to cluster — average run of ${avg.toFixed(1)} days`); }
+  }
+  return insights;
+}
+
+// ── Intervention ──
+function getIntervention() {
+  const now=todayDate(), dk=dateKey(now), yk=dateKey(addDays(now,-1));
+  const tl=logs[dk], yl=logs[yk], ts=tl?tl.status:null, hour=now.getHours();
+  if (yl&&yl.status==='paused'&&!ts) return "You're back today — want to reset with a quick log?";
+  const l2=logs[dateKey(addDays(now,-2))];
+  if (yl&&yl.status==='off'&&l2&&l2.status==='off'&&!ts) return 'Two off days — today is a good reset point';
+  let onC=0,npC=0;
+  for (let i=1;i<=4;i++){const l=logs[dateKey(addDays(now,-i))];if(!l||l.status==='paused'||!l.status)continue;npC++;if(l.status==='on')onC++;}
+  if (npC>=3&&onC>=3&&ts==='on') return "You're building momentum — keep it going";
+  if (!ts&&hour>=19) return 'Log today — it only takes 5 seconds';
+  return null;
+}
+
+// ── Dashboard ──
+let trendChart, thisWeekChart;
+function renderDashboard() {
+  const now=todayDate(); autoSetTrackingStart();
+  const dayCount=trackingDayCount(), startDk=getTrackingStart();
+  const startFmt=startDk?(()=>{const d=new Date(startDk+'T00:00:00');return MONTHS[d.getMonth()]+' '+d.getDate();})():'';
+  const bmr=settings.bmr||1575;
+
+  document.getElementById('dash-date').textContent = DAYS[now.getDay()]+', '+MONTHS[now.getMonth()]+' '+now.getDate();
+  document.getElementById('dash-day-count').textContent = startFmt?'started '+startFmt:'';
+
+  // Intervention
+  const nudge=getIntervention();
+  document.getElementById('dash-intervention').innerHTML = nudge
+    ? `<div class="intervention-dash"><span class="intervention-icon">💡</span><span class="intervention-msg">${nudge}</span></div>` : '';
+
+  // ── WEEK GRID (Mon–Sun, visual layout) ──
+  const ws=startOfWeek(now);
+  let gh='<div></div>';
+  for (let i=0;i<7;i++) {
+    const d=addDays(ws,i), isT=dateKey(d)===dateKey(now), dl=logs[dateKey(d)], ds=dl?dl.status:null;
+    const pipCls=ds==='on'?'pip-on':ds==='off'?'pip-off':ds==='paused'?'pip-not':'';
+    const pip=pipCls?`<div><span class="status-pip ${pipCls}"></span></div>`:'<div style="height:9px;"></div>';
+    gh+=`<div class="week-header-cell${isT?' today':''}"><div>${DAYS[d.getDay()]}</div><div style="font-size:11px;">${d.getDate()}</div>${pip}</div>`;
+  }
+  // Net Cal row — FIX: use calIn - calBurnt (no BMR)
+  gh+='<div class="week-row-label"><span>🔥</span> Net Cal</div>';
+  for (let i=0;i<7;i++) {
+    const d=addDays(ws,i), l=logs[dateKey(d)];
+    if (l&&l.status==='paused') gh+='<div class="week-cell event-day">paused</div>';
+    else if (l&&l.calIn>0) {
+      const n=netCal(l);
+      gh+=`<div class="week-cell ${n<0?'cal-neg':'cal-pos'}">${n>0?'+':''}${Math.round(n)}</div>`;
+    } else gh+='<div class="week-cell dash">—</div>';
+  }
+  // Exercise row
+  gh+='<div class="week-row-label"><span>💪</span> Exercise</div>';
+  for (let i=0;i<7;i++) {
+    const d=addDays(ws,i), l=logs[dateKey(d)];
+    if (l&&l.status==='paused') gh+='<div class="week-cell event-day">—</div>';
+    else if (l&&l.exerciseDone) gh+='<div class="week-cell" style="color:#6b9de8;">✓</div>';
+    else if (l&&l.exercise) gh+=`<div class="week-cell" style="color:#666;font-size:11px;">${l.exercise.substring(0,6)}…</div>`;
+    else gh+='<div class="week-cell dash">—</div>';
+  }
+  // Social row
+  gh+='<div class="week-row-label"><span>👥</span> Social</div>';
+  for (let i=0;i<7;i++) {
+    const d=addDays(ws,i), l=logs[dateKey(d)];
+    if (l&&l.social) gh+=`<div class="week-cell social-cell">${l.social.substring(0,8)}</div>`;
+    else gh+='<div class="week-cell dash">—</div>';
+  }
+  document.getElementById('week-grid').innerHTML=gh;
+
+  // ── STATUS BLOCKS ──
+  const tdk=dateKey(now), tl=logs[tdk], ts=tl?tl.status:null;
+  const sm={on:['🟢 On Track','#5ab85a'],off:['🔴 Off Track','#e06060'],paused:['⚪ Paused','#8888cc']};
+  const [sl,sc]=sm[ts]||['· Not logged','#444'];
+  const tv=document.getElementById('cc-today-val'); tv.textContent=sl; tv.style.color=sc;
+  document.getElementById('cc-today-sub').textContent=tl&&tl.weight?tl.weight+' kg this morning':'';
+  document.getElementById('cc-day-num').textContent=dayCount;
+  document.getElementById('cc-day-sub').textContent=startFmt?'since '+startFmt:'';
+
+  // Streak
+  let streak=0, cd=new Date(now);
+  while (streak<365) {
+    const dk=dateKey(cd), l=logs[dk];
+    if (l&&l.status==='paused'){cd=addDays(cd,-1);if(streak>0)continue;else break;}
+    if (l&&(l.calIn||l.weight)){streak++;cd=addDays(cd,-1);}else break;
+  }
+  document.getElementById('cc-streak').textContent=streak;
+
+  // Last 5 days
+  let bH='', c5={on:0,off:0,paused:0,none:0};
+  for (let i=4;i>=0;i--) {
+    const d=addDays(now,-i), dl=logs[dateKey(d)], s=dl?dl.status:null;
+    c5[s||'none']++; const lb=DAYS[d.getDay()];
+    if(s==='on')bH+=`<span class="five-day-chip chip-on">🟢 ${lb}</span>`;
+    else if(s==='off')bH+=`<span class="five-day-chip chip-off">🔴 ${lb}</span>`;
+    else if(s==='paused')bH+=`<span class="five-day-chip chip-paused">⚪ ${lb}</span>`;
+    else bH+=`<span class="five-day-chip chip-none">· ${lb}</span>`;
+  }
+  document.getElementById('five-day-bar').innerHTML=bH;
+  const p5=[];
+  if(c5.on>0)p5.push(`${c5.on} on`);if(c5.off>0)p5.push(`${c5.off} off`);
+  if(c5.paused>0)p5.push(`${c5.paused} paused`);if(c5.none>0)p5.push(`${c5.none} unlogged`);
+  document.getElementById('five-day-summary').textContent='Last 5 days: '+(p5.join(' / ')||'no data yet');
+
+  // Trend block — weight (today vs 7 days ago)
+  let wt7Weights=[];
+  for(let i=6;i>=0;i--){const l=logs[dateKey(addDays(now,-i))];if(l&&l.weight&&l.status!=='paused')wt7Weights.push(parseFloat(l.weight));}
+  const wEl=document.getElementById('cc-weight-7d'), wsEl=document.getElementById('cc-weight-7d-sub');
+  document.getElementById('cc-trend-label-weight').textContent='Weight — 7d';
+  const a7l=logs[dateKey(addDays(now,-7))];
+  if(a7l&&tl&&a7l.weight&&tl.weight){
+    const diff=parseFloat(tl.weight)-parseFloat(a7l.weight);
+    wEl.textContent=(diff<=0?'↓ ':'↑ ')+(diff>0?'+':'')+diff.toFixed(2)+' kg';
+    wEl.style.color=diff<=0?'#5a9e5a':'#e06060';
+    wsEl.textContent=diff<=0?'Trending down':'Trending up';
+  } else { wEl.textContent='—'; wEl.style.color='#888'; wsEl.textContent='weigh in today & 7 days ago to see'; }
+
+  // Exercise count last 7 days — exerciseDone===true, exclude paused
+  let ex7=0;
+  for(let i=6;i>=0;i--){const l=logs[dateKey(addDays(now,-i))];if(l&&l.exerciseDone===true&&l.status!=='paused')ex7++;}
+  ex7=Math.min(ex7,7);
+  const exEl=document.getElementById('cc-ex-7d');
+  exEl.textContent=ex7+' / '+goals.exerciseTarget;
+  exEl.style.color=ex7>=4?'#5a9e5a':ex7>=2?'#e6a030':'#e06060';
+  document.getElementById('cc-ex-7d-sub').textContent=ex7>=4?'Great consistency':ex7>=2?'Building momentum':'Low activity';
+
+  // Behaviour summary
+  let b7={on:0,off:0,paused:0,none:0};
+  for(let i=6;i>=0;i--){const l=logs[dateKey(addDays(now,-i))];b7[(l?l.status:null)||'none']++;}
+  document.getElementById('cc-b-on').textContent=b7.on;
+  document.getElementById('cc-b-off').textContent=b7.off;
+  document.getElementById('cc-b-paused').textContent=b7.paused;
+  document.getElementById('cc-b-none').textContent=b7.none;
+
+  // Insights
+  const ins=generateInsights(), insEl=document.getElementById('insights-list');
+  insEl.innerHTML=ins.length
+    ?ins.map(i=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid #222;"><span style="color:#6b9de8;flex-shrink:0;">→</span><span style="font-size:12px;color:#bbb;line-height:1.4;">${i}</span></div>`).join('')
+    :'<span style="font-size:12px;color:#555;">Not enough data yet — keep logging</span>';
+
+  // Goals
+  const gp=getGoalProgress();
+  document.getElementById('dash-goals').innerHTML=renderGoalBar(gp.onCount,gp.onTrackTarget,'On Track')+renderGoalBar(gp.exerciseCount,gp.exerciseTarget,'Exercise');
+
+  // Weight progress
+  const allW=Object.keys(logs).sort().filter(k=>logs[k].weight&&logs[k].status!=='paused').map(k=>parseFloat(logs[k].weight));
+  const latW=allW.length?allW[allW.length-1]:settings.startWeight;
+  document.getElementById('current-weight').textContent=latW||'—';
+  document.getElementById('goal-weight-label').textContent='Goal: '+(settings.targetWeight||'—')+' kg';
+  document.getElementById('start-weight-label').textContent=(settings.startWeight||'—')+' kg';
+  document.getElementById('goal-weight-end').textContent=(settings.targetWeight||'—')+' kg';
+  if(settings.startWeight&&settings.targetWeight&&latW){
+    const tot=Math.abs(settings.startWeight-settings.targetWeight),dn=Math.abs(settings.startWeight-latW);
+    const pct=tot>0?Math.min(100,Math.max(0,(dn/tot)*100)):0;
+    document.getElementById('weight-bar').style.width=pct+'%';
+    document.getElementById('weight-pct').textContent=pct.toFixed(1)+'%';
+    document.getElementById('weight-bar-label').style.left=Math.max(0,Math.min(80,pct))+'%';
+    document.getElementById('weight-bar-label').textContent=pct<5?'Just starting':pct<50?'In progress':pct<90?'Almost there':'Goal reached!';
+  }
+
+  // ── ROLLING 7-DAY SUMMARY ──
+  let ciArr=[],tBurnt=0,totalDeficit=0,calDays=0;
+  for(let i=6;i>=0;i--){
+    const l=logs[dateKey(addDays(now,-i))];
+    if(l&&l.status!=='paused'){
+      if(l.calIn){
+        const dayDeficit=(bmr+(parseFloat(l.calBurnt)||0))-parseFloat(l.calIn);
+        totalDeficit+=dayDeficit;
+        ciArr.push(parseFloat(l.calIn));
+        calDays++;
+      }
+      tBurnt+=(parseFloat(l.calBurnt)||0);
+    }
+  }
+
+  // Actual fat loss so far (sum of deficit over tracked days / 7700)
+  const actualFatLoss = calDays>0 ? totalDeficit/7700 : null;
+
+  // Projected weekly rate (avg daily deficit × 7 / 7700) — needs ≥2 tracked days
+  const projectedFatLoss = calDays>=2 ? (totalDeficit/calDays)*7/7700 : null;
+
+  // So far
+  const sfEl=document.getElementById('fat-loss-sofar');
+  if(actualFatLoss!==null){
+    sfEl.textContent=(actualFatLoss>=0?'~':'')+actualFatLoss.toFixed(2)+' kg';
+    sfEl.style.color=actualFatLoss>=0?'#5a9e5a':'#e06060';
+  } else { sfEl.textContent='—'; sfEl.style.color='#888'; }
+
+  // Weekly rate + pace label
+  const rateEl=document.getElementById('fat-loss-rate');
+  const paceWrap=document.getElementById('fat-loss-pace-wrap');
+  const paceEl=document.getElementById('fat-loss-pace');
+  if(projectedFatLoss!==null){
+    rateEl.textContent='~'+projectedFatLoss.toFixed(2)+' kg/wk';
+    rateEl.style.color=projectedFatLoss>=0?'#5a9e5a':'#e06060';
+    paceWrap.style.display='flex';
+    if(projectedFatLoss>0.7){
+      paceEl.textContent='Aggressive'; paceEl.style.background='rgba(224,96,96,0.15)'; paceEl.style.color='#e06060';
+    } else if(projectedFatLoss>=0.3){
+      paceEl.textContent='Good pace'; paceEl.style.background='rgba(90,184,90,0.12)'; paceEl.style.color='#5ab85a';
+    } else if(projectedFatLoss>0){
+      paceEl.textContent='Slow progress'; paceEl.style.background='rgba(230,160,48,0.12)'; paceEl.style.color='#e6a030';
+    } else {
+      paceEl.textContent='Gaining'; paceEl.style.background='rgba(224,96,96,0.15)'; paceEl.style.color='#e06060';
+    }
+  } else {
+    rateEl.textContent='—'; rateEl.style.color='#888';
+    paceWrap.style.display='none';
+  }
+  document.getElementById('fat-loss-meta').textContent=
+    calDays>0 ? 'Based on '+calDays+' tracked day'+(calDays===1?'':'s')+' this week'+(calDays<2?' — log more to estimate rate':'')
+              : 'Log calories to see estimates';
+
+  // Weight change (7d raw)
+  if(a7l&&tl&&a7l.weight&&tl.weight){
+    const diff=parseFloat(tl.weight)-parseFloat(a7l.weight);
+    document.getElementById('actual-change').textContent=(diff>0?'+':'')+diff.toFixed(2)+' kg';
+    document.getElementById('actual-change').style.color=diff<=0?'#5a9e5a':'#e06060';
+  } else document.getElementById('actual-change').textContent='—';
+
+  document.getElementById('avg-burn').textContent=Math.round(tBurnt/7)+' kcal';
+  document.getElementById('avg-cal-in-detail').textContent=ciArr.length?Math.round(ciArr.reduce((a,b)=>a+b,0)/ciArr.length)+' kcal':'—';
+
+  // ── WEIGHT VS PLAN ──
+  // Smoothed weight: rolling 7-day avg of up to 7 prior weight entries (exclude paused)
+  function smoothedWeight(fromDate) {
+    const vals=[];
+    for(let i=0;i<=6;i++){
+      const l=logs[dateKey(addDays(fromDate,-i))];
+      if(l&&l.weight&&l.status!=='paused')vals.push(parseFloat(l.weight));
+      if(vals.length>=7)break;
+    }
+    return vals.length>=3 ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+  }
+  const swToday=smoothedWeight(now), sw7ago=smoothedWeight(addDays(now,-7));
+  const validWeightEntries=allW.length; // allW already computed above
+  const wvpWrap=document.getElementById('weight-vs-plan-wrap');
+  if(validWeightEntries>=5&&calDays>=3&&projectedFatLoss!==null&&swToday!==null&&sw7ago!==null){
+    wvpWrap.style.display='block';
+    const actualWeeklyChange=swToday-sw7ago; // negative = loss
+    // projectedFatLoss is positive kg lost; convert: expected change = -projectedFatLoss
+    const expectedChange=-projectedFatLoss;
+    const difference=actualWeeklyChange-expectedChange;
+    const hl=document.getElementById('wvp-headline'), sub=document.getElementById('wvp-sub');
+    if(Math.abs(difference)<0.2){
+      hl.textContent='✓ On track with your calorie deficit'; hl.style.color='#5ab85a';
+      sub.textContent='Actual weight change matches your logged intake.';
+    } else if(actualWeeklyChange>expectedChange){
+      hl.textContent='⚠ Losing slower than expected'; hl.style.color='#e6a030';
+      sub.textContent='Check calorie accuracy or consistency.';
+    } else {
+      hl.textContent='↓ Losing faster than expected'; hl.style.color='#6b9de8';
+      sub.textContent='Likely includes water loss — keep going.';
+    }
+  } else {
+    wvpWrap.style.display='none';
+  }
+
+  // All-time stats
+  const entries=Object.keys(logs).sort().map(k=>({date:k,log:logs[k]})).filter(e=>e.log.calIn||e.log.weight);
+  document.getElementById('pr-days-logged').textContent=entries.length;
+  const wA=entries.filter(e=>e.log.weight&&e.log.status!=='paused').map(e=>parseFloat(e.log.weight));
+  document.getElementById('pr-lowest').textContent=wA.length?Math.min(...wA).toFixed(1)+' kg':'—';
+  const cA=entries.filter(e=>e.log.calIn&&e.log.status!=='paused').map(e=>parseFloat(e.log.calIn));
+  document.getElementById('pr-avg-cal').textContent=cA.length?Math.round(cA.reduce((a,b)=>a+b,0)/cA.length):'—';
+  // Deficit = net cal below BMR
+  const dD=entries.filter(e=>e.log.calIn&&e.log.status!=='paused'&&netCal(e.log)<bmr).length;
+  document.getElementById('pr-deficit-days').textContent=dD;
+  document.getElementById('pr-deficit-of').textContent='of '+entries.filter(e=>e.log.calIn&&e.log.status!=='paused').length+' tracked';
+
+  // ── CHARTS ── (4-week bar + last-7-days line only)
+  const last4=[];
+  for(let w=3;w>=0;w--){
+    const be=addDays(now,-w*7), bs=addDays(be,-6), lb=MONTHS[bs.getMonth()]+' '+bs.getDate();
+    let cn=[],wa=[],eb=[];
+    for(let d=0;d<7;d++){const l=logs[dateKey(addDays(bs,d))];if(l&&l.status!=='paused'){if(l.calIn)cn.push(netCal(l));if(l.weight)wa.push(parseFloat(l.weight));eb.push(parseFloat(l.calBurnt)||0);}}
+    last4.push({label:lb,netCal:cn.length?Math.round(cn.reduce((a,b)=>a+b,0)/cn.length):0,weight:wa.length?parseFloat((wa.reduce((a,b)=>a+b,0)/wa.length).toFixed(1)):0,burnt:eb.length?Math.round(eb.reduce((a,b)=>a+b,0)/eb.length):0});
+  }
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart(document.getElementById('trend-chart'),{type:'bar',data:{labels:last4.map(w=>w.label),datasets:[{label:'Net Cal',data:last4.map(w=>w.netCal),backgroundColor:'#6b9de8'},{label:'Wt×10',data:last4.map(w=>w.weight*10),backgroundColor:'#5a9e5a'},{label:'Burned',data:last4.map(w=>w.burnt),backgroundColor:'#e6a030'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#666',font:{size:11}},grid:{color:'#222'}},y:{ticks:{color:'#666',font:{size:11}},grid:{color:'#222'}}}}});
+
+  const last7=[];
+  for(let i=6;i>=0;i--){const d=addDays(now,-i);last7.push({label:DAYS[d.getDay()],key:dateKey(d)});}
+  if(thisWeekChart)thisWeekChart.destroy();
+  thisWeekChart=new Chart(document.getElementById('this-week-chart'),{type:'line',data:{labels:last7.map(d=>d.label),datasets:[
+    {label:'Net Cal',data:last7.map(d=>{const l=logs[d.key];return l&&l.calIn&&l.status!=='paused'?netCal(l):null;}),borderColor:'#e6a030',backgroundColor:'rgba(230,160,48,0.08)',tension:0.4,spanGaps:true},
+    {label:'Wt×10', data:last7.map(d=>{const l=logs[d.key];return l&&l.weight?parseFloat(l.weight)*10:null;}),borderColor:'#5a9e5a',backgroundColor:'rgba(90,158,90,0.08)',tension:0.4,spanGaps:true},
+    {label:'Burned',data:last7.map(d=>{const l=logs[d.key];return l&&l.calBurnt&&l.status!=='paused'?parseFloat(l.calBurnt):null;}),borderColor:'#6b9de8',backgroundColor:'rgba(107,157,232,0.08)',tension:0.4,spanGaps:true}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#666',font:{size:11}},grid:{color:'#222'}},y:{ticks:{color:'#666',font:{size:11}},grid:{color:'#222'}}}}});
+}
+
+// ── LOG ──
+let logDayOffset=0;
+function renderLog() {
+  const now=todayDate();
+  const showDays=[addDays(now,logDayOffset),addDays(now,logDayOffset+1),addDays(now,logDayOffset+2)];
+  document.getElementById('log-range-label').textContent=
+    MONTHS[showDays[0].getMonth()]+' '+showDays[0].getDate()+' – '+MONTHS[showDays[2].getMonth()]+' '+showDays[2].getDate()+', '+showDays[2].getFullYear();
+
+  let html='';
+  showDays.forEach(d=>{
+    const dk=dateKey(d), log=getLog(dk), isToday=dk===dateKey(now);
+    const st=log.status, isPaused=st==='paused';
+
+    // Calorie rings (only for non-paused)
+    const calLim=settings.calLimit||1200, carbsLim=settings.carbsLimit||40;
+
+    html+=`<div>
+      <div class="day-col-header ${isToday?'active':''}">
+        <div class="day-name">${isToday?'Today':DAYS[d.getDay()]}</div>
+        <div class="day-date">${MONTHS[d.getMonth()]} ${d.getDate()}</div>
+      </div>`;
+
+    // Rings — only show carbs ring if keto is on
+    if (!isPaused) {
+      html+=`<div class="rings-row">
+        ${ring(parseFloat(log.calIn)||0, calLim, '#5a9e5a', 'Cal In')}
+        ${ring(parseFloat(log.calBurnt)||0, 500, '#6b9de8', 'Cal Out')}
+        ${log.keto ? ring(parseFloat(log.carbs)||0, carbsLim, '#c4803a', 'Carbs') : ''}
+      </div>`;
+      // Net cal display
+      if (log.calIn) {
+        const nc=netCal(log);
+        html+=`<div style="text-align:center;font-size:12px;margin-bottom:10px;color:${nc<0?'#5a9e5a':'#e06060'};">Net: ${nc>0?'+':''}${Math.round(nc)} kcal</div>`;
+      }
+    }
+
+    // Quick Status
+    html+=`<div class="quick-log-card">
+      <div class="quick-log-label">Quick Status</div>
+      <div class="status-row">
+        <button class="status-btn ${st==='on'?'active-on':''}"     onclick="setStatus('${dk}','on')">🟢 On Track</button>
+        <button class="status-btn ${st==='off'?'active-off':''}"   onclick="setStatus('${dk}','off')">🔴 Off Track</button>
+        <button class="status-btn ${st==='paused'?'active-not':''}" onclick="setStatus('${dk}','paused')">⚪ Paused</button>
+      </div>
+    </div>`;
+
+    if (isPaused) {
+      html+=`<div class="paused-notice">⚪ Paused — this day won't affect your progress metrics</div>`;
+    }
+
+    // Morning weight (always visible)
+    html+=`<div class="section-card">
+      <div class="field-label">Morning Weight (kg)</div>
+      <input type="number" step="0.1" placeholder="e.g. 62.0" value="${log.weight||''}" onchange="updateLog('${dk}','weight',this.value)">
+    </div>`;
+
+    if (!isPaused) {
+      // ── MERGED: Meals, Exercise & Social ──
+      html+=`<div class="section-card">
+        <div class="section-title">📋 Day</div>
+
+        <div class="field-row">
+          <div>
+            <div class="field-label">Calories In</div>
+            <input type="number" placeholder="e.g. 1400" value="${log.calIn||''}" onchange="updateLog('${dk}','calIn',parseFloat(this.value)||0);renderLog()">
+          </div>
+          <div>
+            <div class="field-label">Calories Burned</div>
+            <input type="number" placeholder="e.g. 300" value="${log.calBurnt||''}" onchange="updateLog('${dk}','calBurnt',parseFloat(this.value)||0);renderLog()">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div class="field-label">Exercise</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" placeholder="e.g. run, yoga, gym" value="${log.exercise||''}" onchange="updateLog('${dk}','exercise',this.value)" style="flex:1;">
+            <button class="exercise-done-btn ${log.exerciseDone?'done':''}" onclick="toggleExerciseDone('${dk}')">
+              ${log.exerciseDone?'✓ Done':'○ To Do'}
+            </button>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:#555;white-space:nowrap;">
+            <input type="checkbox" ${log.keto?'checked':''} onchange="setKeto('${dk}',this.checked)" style="width:13px;height:13px;accent-color:#5a9e5a;cursor:pointer;">
+            Keto day
+          </label>
+          ${log.keto?`<input type="number" placeholder="Net carbs (g)" value="${log.carbs||''}" onchange="updateLog('${dk}','carbs',parseFloat(this.value)||0);renderLog()" style="font-size:12px;padding:5px 9px;color:#888;border-color:#222;">`:``}
+        </div>
+
+        <div>
+          <div class="field-label">Social Plans</div>
+          <input type="text" placeholder="Dinner with friends, birthday..." value="${log.social||''}" onchange="updateLog('${dk}','social',this.value)">
+        </div>
+      </div>`;
+
+      // Habits
+      if (settings.habits&&settings.habits.length) {
+        html+=`<div class="section-card"><div class="section-title">⭐ Habits</div><div class="habit-grid">`;
+        settings.habits.forEach((h,hi)=>{
+          const done=log.habits&&log.habits[hi];
+          html+=`<div class="habit-btn ${done?'done':''}" onclick="toggleHabit('${dk}',${hi})">
+            <span class="habit-icon">${h.icon}</span>
+            <div class="habit-info"><div class="habit-name">${h.name}</div><div class="habit-status">${done?'Done ✓':'Tap to complete'}</div></div>
+          </div>`;
+        });
+        html+=`</div></div>`;
+      }
+
+      // Journal
+      if (settings.journalTrackers&&settings.journalTrackers.length) {
+        html+=`<div class="section-card"><div class="section-title">📖 Journal</div><div class="journal-metrics">`;
+        settings.journalTrackers.forEach((jt,ji)=>{
+          const val=(log.journal&&log.journal[ji])||0;
+          html+=`<div class="journal-metric-row">
+            <span class="journal-metric-label">${jt.name}</span>
+            <div class="journal-dots">
+              ${[1,2,3].map(v=>`<div class="dot ${val>=v?'filled-'+v:''}" onclick="setJournal('${dk}',${ji},${val===v?0:v})"></div>`).join('')}
+            </div>
+          </div>`;
+        });
+        html+=`</div>
+        <textarea rows="2" placeholder="How are you feeling? Wins, struggles..." onchange="updateLog('${dk}','journalNote',this.value)">${log.journalNote||''}</textarea>
+        </div>`;
+      }
+    }
+
+    html+=`</div>`;
+  });
+
+  document.getElementById('day-cols').innerHTML=html;
+}
+
+// Helpers
+function ring(val,max,color,label) {
+  if (max===0) return `<div class="ring-item"><svg width="70" height="70" viewBox="0 0 70 70"><circle cx="35" cy="35" r="26" fill="none" stroke="#222" stroke-width="5"/><text x="35" y="39" text-anchor="middle" fill="#444" font-size="10">off</text></svg><div class="ring-label">${label}</div></div>`;
+  const r=26,circ=2*Math.PI*r,dash=Math.min(1,val/max)*circ;
+  return `<div class="ring-item"><svg width="70" height="70" viewBox="0 0 70 70">
+    <circle cx="35" cy="35" r="${r}" fill="none" stroke="#2a2a2a" stroke-width="5"/>
+    <circle cx="35" cy="35" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ/4).toFixed(1)}" stroke-linecap="round"/>
+    <text x="35" y="39" text-anchor="middle" fill="${color}" font-size="13" font-weight="600">${val}</text>
+  </svg><div class="ring-label">${label}</div><div class="ring-val">/ ${max}</div></div>`;
+}
+
+function updateLog(dk,field,val)  { const l=getLog(dk); l[field]=val; logs[dk]=l; saveLogs(); }
+function setStatus(dk,status)     { const l=getLog(dk); l.status=status; logs[dk]=l; saveLogs(); renderLog(); }
+function toggleExerciseDone(dk)   { const l=getLog(dk); l.exerciseDone=!l.exerciseDone; logs[dk]=l; saveLogs(); renderLog(); }
+function toggleHabit(dk,idx)      { const l=getLog(dk); if(!l.habits)l.habits={}; l.habits[idx]=!l.habits[idx]; logs[dk]=l; saveLogs(); renderLog(); }
+function setJournal(dk,idx,val)   { const l=getLog(dk); if(!l.journal)l.journal={}; l.journal[idx]=val; logs[dk]=l; saveLogs(); renderLog(); }
+function setKeto(dk,val)          { const l=getLog(dk); l.keto=!!val; if(!l.keto)l.carbs=0; logs[dk]=l; saveLogs(); renderLog(); }
+
+document.getElementById('log-prev').onclick=()=>{logDayOffset-=3; renderLog();};
+document.getElementById('log-next').onclick=()=>{logDayOffset+=3; renderLog();};
+
+// ── TODAY MODE ──
+let _tStatus=null, _tExDone=false;
+function renderToday() {
+  const now=todayDate(), dk=dateKey(now), log=getLog(dk);
+  _tStatus=log.status||null; _tExDone=!!log.exerciseDone;
+  document.getElementById('today-date-sub').textContent=DAYS[now.getDay()]+', '+MONTHS[now.getMonth()]+' '+now.getDate();
+
+  const nudge=getIntervention();
+  document.getElementById('today-intervention').innerHTML=nudge
+    ?`<div class="intervention"><span class="intervention-icon">💡</span><span class="intervention-msg">${nudge}</span></div>`:'';
+
+  const gp=getGoalProgress();
+  document.getElementById('today-goals').innerHTML=`<div class="today-goals"><div class="today-goals-title">This week's goals</div><div class="goal-row">${renderGoalBar(gp.onCount,gp.onTrackTarget,'On Track')}${renderGoalBar(gp.exerciseCount,gp.exerciseTarget,'Exercise')}</div></div>`;
+
+  const wi=document.getElementById('today-weight');
+  if(log.weight){wi.value=log.weight;}
+  else{const lk=Object.keys(logs).sort().reverse().find(k=>k!==dk&&logs[k].weight&&logs[k].status!=='paused');wi.value='';wi.placeholder=lk?'Last: '+logs[lk].weight+' kg':'e.g. 62.0';}
+
+  document.getElementById('today-inputs-section').style.display=_tStatus==='paused'?'none':'';
+  _refreshTS(); _refreshTEx();
+  document.getElementById('today-toast').classList.remove('show');
+}
+function _refreshTS(){['on','off','paused'].forEach(s=>{const b=document.getElementById('tsb-'+s);b.classList.remove('active-on','active-off','active-paused');if(_tStatus===s)b.classList.add('active-'+s);});}
+function _refreshTEx(){const b=document.getElementById('today-ex-done-btn');b.textContent=_tExDone?'✓ Done':'○ Not done';b.classList.toggle('done',_tExDone);}
+function todaySetStatus(s){_tStatus=s;_refreshTS();document.getElementById('today-inputs-section').style.display=s==='paused'?'none':'';}
+function todayToggleEx(){_tExDone=!_tExDone;_refreshTEx();}
+function todaySubmit(){
+  const now=todayDate(),dk=dateKey(now),log=getLog(dk);
+  const wv=document.getElementById('today-weight').value;
+  if(wv)log.weight=parseFloat(wv);
+  if(_tStatus)log.status=_tStatus;
+  if(_tStatus!=='paused')log.exerciseDone=_tExDone;
+  if(!getTrackingStart())setTrackingStart(dk);
+  logs[dk]=log;saveLogs();
+  document.getElementById('today-toast').classList.add('show');
+  setTimeout(()=>document.getElementById('today-toast').classList.remove('show'),3000);
+}
+
+// ── SETTINGS ──
+const EMOJI_OPTIONS=['🏃','💧','🧘','✨','😴','🥗','📚','🧹','💊','🎯','🏋️','🚶','🧠','☀️','🌙','🎵'];
+function renderSettingsPage(){
+  document.getElementById('s-start-weight').value=settings.startWeight||'';
+  document.getElementById('s-target-weight').value=settings.targetWeight||'';
+  document.getElementById('s-cal-limit').value=settings.calLimit||'';
+  document.getElementById('s-carbs-limit').value=settings.carbsLimit||'';
+  document.getElementById('s-bmr').value=settings.bmr||'';
+  document.getElementById('s-on-target').value=goals.onTrackTarget||'';
+  document.getElementById('s-ex-target').value=goals.exerciseTarget||'';
+  let hHtml='';
+  (settings.habits||[]).forEach((h,i)=>{
+    hHtml+=`<div class="habit-setting-item">
+      <select onchange="settings.habits[${i}].icon=this.value" style="width:50px;background:#111;border:1px solid #2a2a2a;border-radius:6px;color:#e8e8e8;font-size:16px;padding:4px;">
+        ${EMOJI_OPTIONS.map(e=>`<option ${e===h.icon?'selected':''}>${e}</option>`).join('')}
+      </select>
+      <input type="text" value="${h.name}" onchange="settings.habits[${i}].name=this.value" style="flex:1;">
+      <button class="delete-btn" onclick="settings.habits.splice(${i},1);renderSettingsPage()">🗑</button>
+    </div>`;
+  });
+  document.getElementById('habits-list').innerHTML=hHtml;
+  let jHtml='';
+  (settings.journalTrackers||[]).forEach((jt,i)=>{
+    jHtml+=`<div class="journal-tracker-row">
+      <span class="jt-num">${i+1}</span>
+      <input type="text" value="${jt.name}" onchange="settings.journalTrackers[${i}].name=this.value" style="flex:1;">
+      <div style="display:flex;gap:4px;margin-right:8px;">${[1,2,3].map(()=>`<div class="jt-dot-preview"></div>`).join('')}</div>
+      <button class="delete-btn" onclick="settings.journalTrackers.splice(${i},1);renderSettingsPage()">🗑</button>
+    </div>`;
+  });
+  document.getElementById('journal-trackers-list').innerHTML=jHtml;
+}
+function addHabit(){if(!settings.habits)settings.habits=[];if(settings.habits.length>=6){alert('Max 6 habits');return;}settings.habits.push({icon:'⭐',name:'New Habit'});renderSettingsPage();}
+function addJournalTracker(){if(!settings.journalTrackers)settings.journalTrackers=[];if(settings.journalTrackers.length>=6){alert('Max 6 trackers');return;}settings.journalTrackers.push({name:'New Tracker'});renderSettingsPage();}
+function saveSettings(){
+  settings.startWeight=parseFloat(document.getElementById('s-start-weight').value)||settings.startWeight;
+  settings.targetWeight=parseFloat(document.getElementById('s-target-weight').value)||settings.targetWeight;
+  settings.calLimit=parseInt(document.getElementById('s-cal-limit').value)||settings.calLimit;
+  settings.carbsLimit=parseInt(document.getElementById('s-carbs-limit').value)||settings.carbsLimit;
+  settings.bmr=parseInt(document.getElementById('s-bmr').value)||settings.bmr;
+  const oT=parseInt(document.getElementById('s-on-target').value), eT=parseInt(document.getElementById('s-ex-target').value);
+  if(oT>=1&&oT<=7)goals.onTrackTarget=oT;
+  if(eT>=1&&eT<=7)goals.exerciseTarget=eT;
+  saveGoals();saveSettingsData();alert('Settings saved!');renderDashboard();
+}
+
+// ── INIT ──
+const isMobile=window.innerWidth<768;
+if(isMobile)navigate('today');else renderDashboard();
+</script>
+</body>
+</html>
